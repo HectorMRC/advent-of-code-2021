@@ -3,31 +3,48 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strconv"
 	"strings"
+
+	common "github.com/HectorMRC/advent-of-code-2021"
 )
 
 const (
 	InputPath = "./day_2/input.txt"
+	BufSize   = 9
 )
 
-func Location(movements []string, from int) (h, v int) {
-	if movements == nil || len(movements) == 0 || from < 0 || len(movements) <= from {
+func command(r io.Reader) (d string, s int, ok bool) {
+	if ok = r != nil; !ok {
 		return
 	}
 
-	movement := strings.Split(movements[from], " ")
-	if got := len(movement); got != 2 {
-		panic(fmt.Errorf("got %v in line %v, want %v", got, from, 2))
+	buf := make([]byte, BufSize)
+	l, err := r.Read(buf)
+	if ok = l > 0 && err == nil; !ok {
+		return
 	}
 
-	steps, err := strconv.Atoi(movement[1])
+	cmd := strings.Split(string(buf[:l]), " ")
+
+	d = cmd[0]
+	s, err = strconv.Atoi(cmd[1])
 	if err != nil {
 		panic(err)
 	}
 
-	switch movement[0] {
+	return
+}
+
+func Location(r io.Reader) (h, v int) {
+	direction, steps, ok := command(r)
+	if !ok {
+		return
+	}
+
+	switch direction {
 	case "up":
 		v = -steps
 	case "down":
@@ -36,26 +53,17 @@ func Location(movements []string, from int) (h, v int) {
 		h = steps
 	}
 
-	h1, v1 := Location(movements, from+1)
+	h1, v1 := Location(r)
 	return h + h1, v + v1
 }
 
-func AimedLocation(movements []string, from, aim, h, v int) (int, int) {
-	if movements == nil || len(movements) == 0 || from < 0 || len(movements) <= from {
+func AimedLocation(r io.Reader, aim, h, v int) (int, int) {
+	direction, steps, ok := command(r)
+	if !ok {
 		return h, v
 	}
 
-	movement := strings.Split(movements[from], " ")
-	if got := len(movement); got != 2 {
-		panic(fmt.Errorf("got %v in line %v, want %v", got, from, 2))
-	}
-
-	steps, err := strconv.Atoi(movement[1])
-	if err != nil {
-		panic(err)
-	}
-
-	switch movement[0] {
+	switch direction {
 	case "up":
 		aim -= steps
 	case "down":
@@ -65,25 +73,22 @@ func AimedLocation(movements []string, from, aim, h, v int) (int, int) {
 		v += aim * steps
 	}
 
-	return AimedLocation(movements, from+1, aim, h, v)
+	return AimedLocation(r, aim, h, v)
 }
 
 func main() {
-	r, err := os.Open(InputPath)
+	file, err := os.Open(InputPath)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	data, err := io.ReadAll(r)
-	if err != nil {
-		panic(err)
-	}
+	defer file.Close()
 
-	input := strings.Split(string(data), "\n")
-	h0, v0 := Location(input, 0)
+	r := common.NewReader(file)
 
-	fmt.Printf("location = %v\n", h0*v0)
+	//h, v := Location(r)
+	//fmt.Printf("location: %v, %v : %v\n", h, v, h*v)
 
-	h1, v1 := AimedLocation(input, 0, 0, 0, 0)
-	fmt.Printf("aimed location = %v\n", h1*v1)
+	h, v := AimedLocation(r, 0, 0, 0)
+	fmt.Printf("aimed location: %v, %v : %v\n", h, v, h*v)
 }

@@ -3,143 +3,67 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strconv"
-	"strings"
-	"sync"
+
+	common "github.com/HectorMRC/advent-of-code-2021"
 )
 
 const (
 	InputPath = "./day_3/input.txt"
-	BitSize   = 12
+	BufSize   = 12
 	BitMask   = 0b111111111111
 )
 
-func GammaRate(input []string, index int) (gamma string) {
-	if input == nil || len(input) == 0 || len(input) <= index {
+func rate(r io.Reader, base []int) {
+	buf := make([]byte, BufSize)
+	l, err := r.Read(buf)
+	if l == 0 || err != nil {
 		return
 	}
 
-	counter := make(map[uint8]int)
-	for _, entry := range input {
-		counter[entry[index]]++
-	}
-
-	max := -1
-	for key, value := range counter {
-		if value > max {
-			gamma = string(key)
-			max = value
+	for i, b := range buf {
+		if b == "1"[0] {
+			base[i] += 1
+		} else if b == "0"[0] {
+			base[i] -= 1
 		}
 	}
 
-	return
+	rate(r, base)
 }
 
-func BitGammaRate(input []string, bitSize int) (gamma string) {
-	buff := make([]string, bitSize)
+func GammaRate(r io.Reader) (s int64, err error) {
+	count := make([]int, BufSize)
+	rate(r, count)
 
-	var wg sync.WaitGroup
-	wg.Add(bitSize)
-
-	for it := 0; it < bitSize; it++ {
-		var current int = it
-		go func(wg *sync.WaitGroup, index int) {
-			buff[index] = GammaRate(input, index)
-			wg.Done()
-		}(&wg, current)
-	}
-
-	wg.Wait()
-	return strings.Join(buff, "")
-}
-
-func GroupByOccurrences(input []string, index int) (counter map[uint8]int, filter map[uint8][]string) {
-	if input == nil || len(input) == 0 || index < 0 || index >= BitSize {
-		return
-	}
-
-	counter = make(map[uint8]int)
-	filter = make(map[uint8][]string)
-	for _, item := range input {
-		counter[item[index]]++
-
-		if _, exists := filter[item[index]]; exists {
-			filter[item[index]] = append(filter[item[index]], item)
+	var str string
+	for _, i := range count {
+		if i >= 0 {
+			str += "1"
 		} else {
-			filter[item[index]] = []string{item}
+			str += "0"
 		}
 	}
 
-	return
-}
-
-func OxygenGeneratorRating(input []string, index int) (rate string) {
-	if len(input) == 1 {
-		return input[0]
-	}
-
-	counter, filter := GroupByOccurrences(input, index)
-
-	max := -1
-	var selected uint8
-	for key, value := range counter {
-		if value > max || (value == max && key == "1"[0]) {
-			selected = key
-			max = value
-		}
-	}
-
-	return OxygenGeneratorRating(filter[selected], index+1)
-}
-
-func Co2ScrubberRating(input []string, index int) (rate string) {
-	if len(input) == 1 {
-		return input[0]
-	}
-
-	counter, filter := GroupByOccurrences(input, index)
-
-	min := len(input) + 1
-	var selected uint8
-	for key, value := range counter {
-		if value < min || (value == min && key == "0"[0]) {
-			selected = key
-			min = value
-		}
-	}
-
-	return Co2ScrubberRating(filter[selected], index+1)
+	return strconv.ParseInt(str, 2, BufSize+1)
 }
 
 func main() {
-	r, err := os.Open(InputPath)
+	file, err := os.Open(InputPath)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	data, err := io.ReadAll(r)
+	defer file.Close()
+
+	r := common.NewReader(file)
+	gamma, err := GammaRate(r)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	input := strings.Split(string(data), "\n")
-	gamma, err := strconv.ParseInt(BitGammaRate(input, BitSize), 2, BitSize+1)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("gamma x epsilon = %v\n", gamma*(gamma^BitMask))
-
-	gen, err := strconv.ParseInt(OxygenGeneratorRating(input, 0), 2, BitSize+1)
-	if err != nil {
-		panic(err)
-	}
-
-	scrub, err := strconv.ParseInt(Co2ScrubberRating(input, 0), 2, BitSize+1)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("oxygen x CO2 = %v\n", gen*scrub)
+	epsilon := gamma ^ BitMask
+	fmt.Printf("%v (gamma rate) x %v (epsilon rate): %v\n", gamma, epsilon, gamma*epsilon)
 }
