@@ -1,13 +1,13 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"strconv"
-
-	common "github.com/HectorMRC/advent-of-code-2021"
 )
 
 const (
@@ -16,27 +16,28 @@ const (
 	BitMask   = 0b111111111111
 )
 
-func rate(r io.Reader, base []int) {
-	buf := make([]byte, BufSize)
-	l, err := r.Read(buf)
-	if l == 0 || err != nil {
+func gammaRate(s *bufio.Scanner, base []int) {
+	if !s.Scan() {
 		return
 	}
 
-	for i, b := range buf {
-		if b == "1"[0] {
+	for i, b := range s.Text() {
+		if b == '1' {
 			base[i] += 1
-		} else if b == "0"[0] {
+		} else if b == '0' {
 			base[i] -= 1
 		}
 	}
 
-	rate(r, base)
+	gammaRate(s, base)
 }
 
-func GammaRate(r io.Reader) (s int64, err error) {
+func GammaRate(r io.Reader) (int64, error) {
+	s := bufio.NewScanner(r)
+	s.Split(bufio.ScanLines)
+
 	count := make([]int, BufSize)
-	rate(r, count)
+	gammaRate(s, count)
 
 	var str string
 	for _, i := range count {
@@ -51,15 +52,17 @@ func GammaRate(r io.Reader) (s int64, err error) {
 }
 
 func main() {
-	file, err := os.Open(InputPath)
+	f, err := os.Open(InputPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer file.Close()
+	defer f.Close()
 
-	r := common.NewReader(file)
-	gamma, err := GammaRate(r)
+	var buf bytes.Buffer
+	tee := io.TeeReader(f, &buf)
+
+	gamma, err := GammaRate(tee)
 	if err != nil {
 		log.Fatal(err)
 	}

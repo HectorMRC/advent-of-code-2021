@@ -1,57 +1,62 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"strconv"
-
-	common "github.com/HectorMRC/advent-of-code-2021"
 )
 
 const (
-	InputPath = "./day_1/input.txt"
-	WindSize  = 3
-	BufSize   = 5
+	inputPath = "./day_1/input.txt"
+	windSize  = 3
 )
 
-func HowManyIncreases(r io.Reader, base int) int {
-	if r == nil {
+func HowManyIncreases(r io.Reader) int {
+	s := bufio.NewScanner(r)
+	s.Split(bufio.ScanLines)
+
+	return howManyIncreases(s, 0)
+}
+
+func howManyIncreases(s *bufio.Scanner, base int) int {
+	if s == nil || !s.Scan() {
 		return 0
 	}
 
-	buf := make([]byte, BufSize)
-	l, err := r.Read(buf)
-	if l == 0 || err != nil {
-		return 0
-	}
-
-	current, err := strconv.Atoi(string(buf[:l]))
+	current, err := strconv.Atoi(s.Text())
 	if err != nil {
 		log.Print(err)
 		return 0
 	}
 
 	if 0 < base && current > base {
-		return 1 + HowManyIncreases(r, current)
+		return 1 + howManyIncreases(s, current)
 	} else {
-		return HowManyIncreases(r, current)
+		return howManyIncreases(s, current)
 	}
 }
 
-func WindowedHowManyIncreases(r io.Reader, wind int, base int) (count int) {
-	if r == nil {
+func WindowedHowManyIncreases(r io.Reader, wind int) (count int) {
+	s := bufio.NewScanner(r)
+	s.Split(bufio.ScanLines)
+	return windowedHowManyIncreases(s, wind, 0)
+}
+
+func windowedHowManyIncreases(s *bufio.Scanner, wind int, base int) (count int) {
+	if s == nil {
 		return 0
 	}
 
 	var window []int
-	buf := make([]byte, BufSize)
-
-	for l, err := r.Read(buf); l > 0 && err == nil; l, err = r.Read(buf) {
-		current, err := strconv.Atoi(string(buf[:l]))
+	for s.Scan() {
+		current, err := strconv.Atoi(s.Text())
 		if err != nil {
 			log.Print(err)
+
 			return 0
 		}
 
@@ -73,14 +78,16 @@ func WindowedHowManyIncreases(r io.Reader, wind int, base int) (count int) {
 }
 
 func main() {
-	file, err := os.Open(InputPath)
+	f, err := os.Open(inputPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer file.Close()
+	defer f.Close()
 
-	r := common.NewReader(file)
-	//fmt.Printf("total increases: %v\n", HowManyIncreases(r, 0))
-	fmt.Printf("total increases (window size %v): %v\n", WindSize, WindowedHowManyIncreases(r, WindSize, 0))
+	var buf bytes.Buffer
+	tee := io.TeeReader(f, &buf)
+
+	fmt.Printf("total increases: %v\n", HowManyIncreases(tee))
+	fmt.Printf("total increases (window size %v): %v\n", windSize, WindowedHowManyIncreases(&buf, windSize))
 }
