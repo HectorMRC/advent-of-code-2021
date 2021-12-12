@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	InputPath = "./day_3/input.txt"
+	inputPath = "./day_3/input.txt"
 	BufSize   = 12
 	BitMask   = 0b111111111111
 )
@@ -143,7 +143,7 @@ func LifeSupoprtRating(r io.Reader) (int64, int64, error) {
 }
 
 func main() {
-	f, err := os.Open(InputPath)
+	f, err := os.Open(inputPath)
 	if err != nil {
 		log.Fatal(err)
 	}
