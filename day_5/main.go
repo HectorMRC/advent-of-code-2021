@@ -16,57 +16,92 @@ const (
 	inputPath            = "./day_5/input.txt"
 	PointsSeparator      = "->"
 	CoordinatesSeparator = ","
+
+	horizontal = iota
+	vertical
+	other
 )
 
 var (
 	ErrBadFormat = errors.New("bad format")
+	MaxOverlaps  = 2
 )
 
 type point [2]int
+type belongsFunc func(p *point) bool
 
-func lineEquationFrom2Points(p, q *point) (a, b, c int) {
-	a = q[1] - p[1]
-	b = p[0] - q[0]
-	c = -(a*(p[0]) + b*(p[1]))
+func getLine(p, q *point) (f belongsFunc, orientation int) {
+	changeInX := q[0] - p[0]
+	changeInY := q[1] - p[1]
 
-	if b < 0 {
-		return a, -b, -c
+	f = func(r *point) bool {
+		if changeInX == 0 {
+			// is vertical
+			return r[0] == p[0]
+		} else if changeInY == 0 {
+			// is horizontal
+			return r[1] == p[1]
+		}
+
+		slope := changeInY / changeInX
+		return p[1]-r[1] == slope*(p[0]-r[0])
+	}
+
+	if changeInX == 0 {
+		orientation = vertical
+	} else if changeInY == 0 {
+		orientation = horizontal
+	} else {
+		orientation = other
 	}
 
 	return
 }
 
 func isBetween(subject, p, q *point) bool {
-	min := minPoint(p, q)
-	max := maxPoint(p, q)
+	bounds, ok := getBounds(p, q)
+	if !ok {
+		return false
+	}
 
-	return !(subject[0] < min[0] || subject[0] > max[0] || subject[1] < min[1] || subject[1] > max[1])
+	return !(subject[0] < bounds[0][0] || subject[0] > bounds[1][0] || subject[1] < bounds[0][1] || subject[1] > bounds[1][1])
 }
 
-func minPoint(p, q *point) *point {
-	r := &point{p[0], p[1]}
-	if q[0] < r[0] {
-		r[0] = q[0]
+func getBounds(p ...*point) ([2]*point, bool) {
+	if len(p) == 0 {
+		return [2]*point{nil, nil}, false
 	}
 
-	if q[1] < r[1] {
-		r[1] = q[1]
+	var min, max *point
+	for i := 0; i < len(p); i++ {
+		if p[i] == nil {
+			continue
+		}
+
+		if min == nil && max == nil {
+			min = &point{p[i][0], p[i][1]}
+			max = &point{p[i][0], p[i][1]}
+			continue
+		}
+
+		if p[i][0] < min[0] {
+			min[0] = p[i][0]
+		}
+
+		if p[i][1] < min[1] {
+			min[1] = p[i][1]
+		}
+
+		if p[i][0] > max[0] {
+			max[0] = p[i][0]
+		}
+
+		if p[i][1] > max[1] {
+			max[1] = p[i][1]
+		}
 	}
 
-	return r
-}
-
-func maxPoint(p, q *point) *point {
-	r := &point{p[0], p[1]}
-	if q[0] > r[0] {
-		r[0] = q[0]
-	}
-
-	if q[1] > r[1] {
-		r[1] = q[1]
-	}
-
-	return r
+	return [2]*point{min, max}, true
 }
 
 func parsePoint(s string) (*point, error) {
@@ -109,64 +144,51 @@ func HowManyPointsBelongs2MultipleLines(r io.Reader, diagonal bool) (int, error)
 		return 0, nil
 	}
 
-	equations := [][3]int{}
-	bounds := [][2]*point{}
+	equations := []belongsFunc{}
+	limits := [][2]*point{}
+	var bounds [2]*point
 
 	s := bufio.NewScanner(r)
 	s.Split(bufio.ScanLines)
 
-	min := &point{0, 0}
-	max := &point{0, 0}
 	for s.Scan() {
 		p, q, err := parsePoints(s.Text())
 		if err != nil {
 			return 0, err
 		}
 
-		a, b, c := lineEquationFrom2Points(p, q)
-		if diagonal || a == 0 || b == 0 {
-			min = minPoint(min, p)
-			min = minPoint(min, q)
+		belongs, orientation := getLine(p, q)
+		if diagonal || orientation < other {
+			newBounds, ok := getBounds(bounds[0], bounds[1], p, q)
+			if !ok {
+				log.Println("failed while geting bounds")
+				continue
+			}
 
-			max = maxPoint(max, p)
-			max = maxPoint(max, q)
-
-			equations = append(equations, [3]int{a, b, c})
-			bounds = append(bounds, [2]*point{p, q})
-
+			bounds = newBounds
+			equations = append(equations, belongs)
+			limits = append(limits, [2]*point{p, q})
 		}
 	}
 
 	total := 0
-	for y := min[1]; y <= max[1]; y++ {
-		for x := min[0]; x <= max[0]; x++ {
+	for y := bounds[0][1]; y <= bounds[1][1]; y++ {
+		for x := bounds[0][0]; x <= bounds[1][0]; x++ {
 			count := 0
-			for i, eq := range equations {
-				if eq[0]*x+eq[1]*y+eq[2] == 0 && isBetween(&point{x, y}, bounds[i][0], bounds[i][1]) {
+			for i, belongs := range equations {
+				if belongs(&point{x, y}) && isBetween(&point{x, y}, limits[i][0], limits[i][1]) {
 					count++
 				}
-				// } else {
-				// 	log.Printf("equation: %v(%v) + %v(%v) + %v = %v", eq[0], x, eq[1], y, eq[2], eq[0]*x+eq[1]*y+eq[2])
-				// }
 
-				// if count > 1 {
-				// 	break
-				// }
+				if MaxOverlaps > 0 && count > MaxOverlaps-1 {
+					break
+				}
 			}
 
-			c := "."
-			if count > 0 {
-				c = fmt.Sprint(count)
-			}
-
-			fmt.Print(c)
-
-			if count > 1 {
+			if count > MaxOverlaps-1 {
 				total++
 			}
 		}
-
-		fmt.Println()
 	}
 
 	return total, nil
